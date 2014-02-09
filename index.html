@@ -6,20 +6,34 @@
     <head>
         <meta charset="utf-8">
         <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-        <title>DJEB</title>
+        <title>Flappy Bird</title>
         <meta name="viewport" content="width=768">
         <script src="http://www.createjs.com/Demos/EaselJS/assets/preloadjs-NEXT.min.js"></script>
         <script src="http://code.createjs.com/createjs-2013.09.25.min.js"></script>
         <script src="ndgmr.Collision.js"></script>
+        <!-- http://www.dafont.com/04b-19.font?text=Flappy+Bird -->
 
         <style type="text/css">
+
+            @font-face {
+                font-family: 'Flappy Bird';
+                src: url('fonts/FB.eot');
+                src: url('fonts/FB.eot?#iefix') format('embedded-opentype'),
+                     url('fonts/FB.woff') format('woff'),
+                     url('fonts/FB.ttf') format('truetype'),
+                     url('fonts/FB.svg#04b_19regular') format('svg');
+                font-weight: normal;
+                font-style: normal;
+            }
             body, html {
                 margin: 0px;
                 padding: 0px;
                 text-align: center;
+                height: 100%;
             }
             canvas {
                 margin-bottom: -4px;
+                height: 100%;
             }
         </style>
 
@@ -27,8 +41,8 @@
             // http://createjs.com/#!/TweenJS/demos/sparkTable
             // http://createjs.com/Docs/TweenJS/modules/TweenJS.html
             // view-source:http://createjs.com/Demos/EaselJS/Game.html COPY THIS
-            var stage, w, h, loader, pipe1height, pipe2height, pipe3height;
-            var background, bird, ground, pipe, bottomPipe, pipes, rotationDelta;
+            var stage, w, h, loader, pipe1height, pipe2height, pipe3height, startX, startY, wiggleDelta;
+            var background, bird, ground, pipe, bottomPipe, pipes, rotationDelta, counter, counterOutline;
             var started = false; 
             var startJump = false; // Has the jump started?
 
@@ -40,6 +54,8 @@
             var gap = 250;
             var masterPipeDelay = 78; // delay between pipes
             var pipeDelay = masterPipeDelay; //counter used to monitor delay
+
+            var counterShow = false;
 
             document.onkeydown = handleKeyDown;
 
@@ -65,7 +81,9 @@
                     {src:"bird.png", id:"bird"},
                     {src:"background.png", id:"background"},
                     {src:"ground.png", id:"ground"},
-                    {src:"pipeBottom.png", id:"pipe"}
+                    {src:"pipe.png", id:"pipe"},
+                    {src:"restart.png", id:"start"},
+                    {src:"share.png", id:"share"}
                 ];
 
                 loader = new createjs.LoadQueue(false);
@@ -94,9 +112,9 @@
                 });
                 bird = new createjs.Sprite(data, "fly");
 
-                var startX = (w/2) - (92/2)
-                    startY = 512,
-                    wiggleDelta = 18
+                startX = (w/2) - (92/2)
+                startY = 512
+                wiggleDelta = 18
 
                 // Set initial position and scale 1 to 1
                 bird.setTransform(startX, startY, 1, 1);
@@ -115,6 +133,18 @@
                 stage.addChild(bird, ground);
                 stage.addEventListener("stagemousedown", handleJumpStart);
                 
+                counter = new createjs.Text(0, "86px 'Flappy Bird'", "#ffffff");
+                counterOutline = new createjs.Text(0, "86px 'Flappy Bird'", "#000000");
+                counterOutline.outline = 5
+                counterOutline.textAlign = 'center'
+                counter.textAlign = 'center'
+                counterOutline.x = w/2
+                counterOutline.y = 150
+                counter.x = w/2
+                counter.y = 150
+                counter.alpha = 0
+                counterOutline.alpha = 0
+                stage.addChild(counter, counterOutline)
 
                 createjs.Ticker.timingMode = createjs.Ticker.RAF;
                 createjs.Ticker.addEventListener("tick", tick);
@@ -135,7 +165,10 @@
                     createjs.Tween.removeTweens ( bird )
                     bird.gotoAndPlay("jump");
                     startJump = true
-                    started = true                    
+                    if (!started) {
+                        started = true
+                        counterShow = true                        
+                    }
                 }
             }
 
@@ -143,23 +176,77 @@
                 bird.gotoAndPlay("dive");
             }
 
+            function restart() {
+                //hide anything on stage and show the score
+                pipes.removeAllChildren();
+                createjs.Tween.get(start).to({y:start.y + 10}, 50).call(removeStart)
+                counter.text = 0
+                counterOutline.text = 0
+                counterOutline.alpha = 0
+                counter.alpha = 0
+                counterShow = false
+                pipeDelay = masterPipeDelay
+                dead = false
+                started = false
+                startJump = false
+                createjs.Tween.removeTweens ( bird )
+                bird.x = startX
+                bird.y = startY
+                bird.rotation = 0
+                createjs.Tween.get(bird, {loop:true}).to({y:startY + wiggleDelta}, 380, createjs.Ease.sineInOut).to({y:startY}, 380, createjs.Ease.sineInOut);
+            }
+
             function die() {
                 dead = true
                 bird.gotoAndPlay("dive");
                 createjs.Tween.removeTweens ( bird )
-                createjs.Tween.get(bird).wait(300).to({y:bird.y + 200, rotation: 90}, (380)/1.5, createjs.Ease.linear) //rotate back
-                .call(diveBird) // change bird to diving position
-                .to({y:ground.y - 30}, (h - (bird.y+200))/1.5, createjs.Ease.linear); //drop to the bedrock
+                createjs.Tween.get(bird).wait(0).to({y:bird.y + 200, rotation: 90}, (380)/1.5, createjs.Ease.linear) //rotate back
+                        .call(diveBird) // change bird to diving position
+                        .to({y:ground.y - 30}, (h - (bird.y+200))/1.5, createjs.Ease.linear); //drop to the bedrock
+                createjs.Tween.get(stage).to({alpha:0}, 100).to({alpha:1}, 100)
+                start = new createjs.Bitmap(loader.getResult("start"));
+                start.alpha = 0
+                start.x = w/2 - start.image.width/2
+                start.y = h/2 - start.image.height/2 - 150
+                share = new createjs.Bitmap(loader.getResult("share"));
+                share.alpha = 0
+                share.x = w/2 - share.image.width/2
+                share.y = h/2 - share.image.height/2 - 50
+
+                stage.addChild(start)
+                stage.addChild(share)
+                createjs.Tween.get(start).to({alpha:1, y: start.y + 50}, 400, createjs.Ease.sineIn).call(addClickToStart)
+                createjs.Tween.get(share).to({alpha:1, y: share.y + 50}, 400, createjs.Ease.sineIn).call(addClickToStart)
+                
+            }
+            function removeStart() {
+                stage.removeChild(start)
+                stage.removeChild(share)
+            }
+            function addClickToStart() {
+                start.addEventListener("click", restart);
+                share.addEventListener("click", goShare);
+            }
+
+            function goShare() {
+                var countText
+                if (counter.text == 1) {
+                    countText = "1 point"
+                } else {
+                    countText = counter.text + " points"
+                }
+                window.open("https://twitter.com/share?url=http%3A%2F%2Fmaxmcd.com%2Ffb%2F&text=I scored " + countText +  " on HTML5 Flappy Bird.");
             }
 
             function tick(event) {
                 var deltaS = event.delta/1000;
-                var position = bird.x+150*deltaS;
 
                 var l = pipes.getNumChildren();
 
                 if (bird.y > (ground.y - 40)) {
-                    die()
+                    if (!dead) {
+                        die()
+                    }
                     if (bird.y > (ground.y - 30)) {
                         createjs.Tween.removeTweens ( bird )
                     }
@@ -197,17 +284,28 @@
                         pipe = pipes.getChildAt(i);
                         if (pipe) {
                             if (true) { // tried replacing true with this, but it's off: pipe.x < bird.x + 92 && pipe.x > bird.x 
-                                if (ndgmr.checkRectCollision(pipe,bird,5,true)) {
-                                    die()
+                                var collision = ndgmr.checkRectCollision(pipe,bird,1,true)
+                                if (collision) {
+                                    if (collision.width > 8 && collision.height > 8) {
+                                        die()
+                                    }
                                 }
                             }
                             pipe.x = (pipe.x - deltaS*300);
+                            if (pipe.x <= 338 && pipe.rotation == 0 && pipe.name != "counted") {
+                                pipe.name = "counted" //using the pipe name to count pipes
+                                counter.text = counter.text + 1
+                                counterOutline.text = counterOutline.text + 1
+                            }
                             if (pipe.x + pipe.image.width <= -pipe.w) { 
                                 pipes.removeChild(pipe)
                             }
-
-
                         }
+                    }
+                    if (counterShow) {
+                        counter.alpha = 1
+                        counterOutline.alpha = 1
+                        counterShow = false
                     }
 
                 }
@@ -222,6 +320,9 @@
                         rotationDelta = (-bird.rotation - 20)/5
                     } else {
                         rotationDelta = (bird.rotation + 20)/5
+                    }
+                    if (bird.y < -200) {
+                        bird.y = -200
                     }
                     createjs
                         .Tween
@@ -242,5 +343,14 @@
     </head>
     <body onload="init();">
         <canvas id="testCanvas" width="768" height="1024"></canvas>
+        <script>
+          (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+          (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+          m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+          })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+          ga('create', 'UA-38232777-1', 'maxmcd.com');
+          ga('send', 'pageview');
+        </script>
     </body>
-</html
+</html>
