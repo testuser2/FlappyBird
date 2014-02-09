@@ -10,6 +10,7 @@
         <meta name="viewport" content="width=768">
         <script src="http://www.createjs.com/Demos/EaselJS/assets/preloadjs-NEXT.min.js"></script>
         <script src="http://code.createjs.com/createjs-2013.09.25.min.js"></script>
+        <script src="ndgmr.Collision.js"></script>
 
         <style type="text/css">
             body, html {
@@ -27,14 +28,17 @@
             // http://createjs.com/Docs/TweenJS/modules/TweenJS.html
             // view-source:http://createjs.com/Demos/EaselJS/Game.html COPY THIS
             var stage, w, h, loader, pipe1height, pipe2height, pipe3height;
-            var background, bird, ground, pipe, bottomPipe, pipes;
+            var background, bird, ground, pipe, bottomPipe, pipes, rotationDelta;
             var started = false; 
             var startJump = false; // Has the jump started?
+
             var jumpAmount = 120; // How high is the jump?
+            var jumpTime = 266;
+
             var dead = false; // is the bird dead?
             var KEYCODE_SPACE = 32;     //usefull keycode
             var gap = 250;
-            var masterPipeDelay = 65; // delay between pipes
+            var masterPipeDelay = 78; // delay between pipes
             var pipeDelay = masterPipeDelay; //counter used to monitor delay
 
             document.onkeydown = handleKeyDown;
@@ -127,14 +131,25 @@
             }
 
             function handleJumpStart() {
-                createjs.Tween.removeTweens ( bird )
-                bird.gotoAndPlay("jump");
-                startJump = true
-                started = true
+                if (!dead) {
+                    createjs.Tween.removeTweens ( bird )
+                    bird.gotoAndPlay("jump");
+                    startJump = true
+                    started = true                    
+                }
             }
 
             function diveBird() {
                 bird.gotoAndPlay("dive");
+            }
+
+            function die() {
+                dead = true
+                bird.gotoAndPlay("dive");
+                createjs.Tween.removeTweens ( bird )
+                createjs.Tween.get(bird).wait(300).to({y:bird.y + 200, rotation: 90}, (380)/1.5, createjs.Ease.linear) //rotate back
+                .call(diveBird) // change bird to diving position
+                .to({y:ground.y - 30}, (h - (bird.y+200))/1.5, createjs.Ease.linear); //drop to the bedrock
             }
 
             function tick(event) {
@@ -144,12 +159,10 @@
                 var l = pipes.getNumChildren();
 
                 if (bird.y > (ground.y - 40)) {
-                    dead = true
+                    die()
                     if (bird.y > (ground.y - 30)) {
                         createjs.Tween.removeTweens ( bird )
                     }
-                } else {
-                    dead = false
                 }
                 
                 if (!dead) {
@@ -159,20 +172,19 @@
 
                 if (started && !dead) {
                     if (pipeDelay == 0) {
-                        console.log(pipes)
 
                         pipe = new createjs.Bitmap(loader.getResult("pipe"));
                         pipe.x = w+600
                         pipe.y = (ground.y - gap*2) * Math.random() + gap*1.5
                         pipes.addChild(pipe);
+                        // createjs.Tween.get(pipe).to({x:0 - pipe.image.width}, 5100)
 
                         pipe2 = new createjs.Bitmap(loader.getResult("pipe"));
                         pipe2.scaleX = -1
                         pipe2.rotation = 180
                         pipe2.x = pipe.x //+ pipe.image.width
                         pipe2.y = pipe.y - gap
-
-                        console.log(pipe2)
+                        // createjs.Tween.get(pipe2).to({x:0 - pipe.image.width}, 5100)
 
                         pipes.addChild(pipe2);
 
@@ -184,10 +196,16 @@
                     for(var i = 0; i < l; i++) {
                         pipe = pipes.getChildAt(i);
                         if (pipe) {
+                            if (true) { // tried replacing true with this, but it's off: pipe.x < bird.x + 92 && pipe.x > bird.x 
+                                if (ndgmr.checkRectCollision(pipe,bird,5,true)) {
+                                    die()
+                                }
+                            }
                             pipe.x = (pipe.x - deltaS*300);
                             if (pipe.x + pipe.image.width <= -pipe.w) { 
                                 pipes.removeChild(pipe)
                             }
+
 
                         }
                     }
@@ -200,14 +218,20 @@
                     startJump = false
                     bird.framerate = 60;
                     bird.gotoAndPlay("fly");
+                    if (bird.roation < 0) {
+                        rotationDelta = (-bird.rotation - 20)/5
+                    } else {
+                        rotationDelta = (bird.rotation + 20)/5
+                    }
                     createjs
                         .Tween
                         .get(bird)
-                        .to({y:bird.y - jumpAmount, rotation: -20}, 380, createjs.Ease.sineOut) //rotate to jump position and jump bird
-                        .to({y:bird.y}, 380, createjs.Ease.sineIn) //reverse jump for smooth arch
-                        .to({y:bird.y + 200, rotation: 90}, (380)/1.3, createjs.Ease.linear) //rotate back
+                        .to({y:bird.y - rotationDelta, rotation: -20}, rotationDelta, createjs.Ease.linear) //rotate to jump position and jump bird
+                        .to({y:bird.y - jumpAmount, rotation: -20}, jumpTime - rotationDelta, createjs.Ease.quadOut) //rotate to jump position and jump bird
+                        .to({y:bird.y}, jumpTime, createjs.Ease.quadIn) //reverse jump for smooth arch
+                        .to({y:bird.y + 200, rotation: 90}, (380)/1.5, createjs.Ease.linear) //rotate back
                         .call(diveBird) // change bird to diving position
-                        .to({y:ground.y - 30}, (h - (bird.y+200))/1.3, createjs.Ease.linear); //drop to the bedrock
+                        .to({y:ground.y - 30}, (h - (bird.y+200))/1.5, createjs.Ease.linear); //drop to the bedrock
                 }
 
                 
