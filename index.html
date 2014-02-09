@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js"> <!--<![endif]-->
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <title>DJEB</title>
+        <meta name="viewport" content="width=768">
+        <script src="http://www.createjs.com/Demos/EaselJS/assets/preloadjs-NEXT.min.js"></script>
+        <script src="http://code.createjs.com/createjs-2013.09.25.min.js"></script>
+
+        <style type="text/css">
+            body, html {
+                margin: 0px;
+                padding: 0px;
+                text-align: center;
+            }
+            canvas {
+                margin-bottom: -4px;
+            }
+        </style>
+
+        <script type="text/javascript">
+            // http://createjs.com/#!/TweenJS/demos/sparkTable
+            // http://createjs.com/Docs/TweenJS/modules/TweenJS.html
+            // view-source:http://createjs.com/Demos/EaselJS/Game.html COPY THIS
+            var stage, w, h, loader;
+            var background, bird, ground, hill, hill2;
+            var started = false; 
+            var startJump = false; // Has the jump started?
+            var jumpAmount = 120; // How high is the jump?
+            var dead = false; // is the bird dead?
+            var KEYCODE_SPACE = 32;     //usefull keycode
+
+            document.onkeydown = handleKeyDown;
+
+            function init() {
+                if (window.top != window) {
+                    document.getElementById("header").style.display = "none";
+                }
+
+
+                // createjs.MotionGuidePlugin.install();
+
+                stage = new createjs.Stage("testCanvas");
+
+                createjs.Touch.enable(stage);
+                // stage.canvas.width = document.body.clientWidth; //document.width is obsolete
+                // stage.canvas.height = document.body.clientHeight; //document.height is obsolete
+                
+                // grab canvas width and height for later calculations:
+                w = stage.canvas.width;
+                h = stage.canvas.height;
+
+                manifest = [
+                    {src:"bird.png", id:"bird"},
+                    {src:"background.png", id:"background"},
+                    {src:"ground.png", id:"ground"},
+                    {src:"pipeTop.png", id:"hill"},
+                    {src:"pipeBottom.png", id:"hill2"}
+                ];
+
+                loader = new createjs.LoadQueue(false);
+                loader.addEventListener("complete", handleComplete);
+                loader.loadManifest(manifest);
+            }
+
+            function handleComplete() {
+                
+                background = new createjs.Shape();
+                background.graphics.beginBitmapFill(loader.getResult("background")).drawRect(0,0,w,h);
+                
+                var groundImg = loader.getResult("ground");
+                ground = new createjs.Shape();
+                ground.graphics.beginBitmapFill(groundImg).drawRect(0, 0, w+groundImg.width, groundImg.height);
+                ground.tileW = groundImg.width;
+                ground.y = h-groundImg.height;
+                
+                hill = new createjs.Bitmap(loader.getResult("hill"));
+                // hill.setTransform(Math.random() * w, h-hill.image.height*3-groundImg.height, 3, 3);
+                     
+                hill2 = new createjs.Bitmap(loader.getResult("hill2"));
+                // hill2.setTransform(Math.random() * w, h-hill2.image.height*3-groundImg.height, 3, 3);
+            
+                var data = new createjs.SpriteSheet({
+                    "images": [loader.getResult("bird")],
+                    //set center and size of frames, center is important for later bird roation
+                    "frames": {"width": 92, "height": 64, "regX": 46, "regY": 32, "count": 3}, 
+                    // define two animations, run (loops, 0.21x speed) and dive (returns to dive and holds frame one static):
+                    "animations": {"fly": [0, 2, "fly", 0.21], "dive": [1, 1, "dive", 1]}
+                });
+                bird = new createjs.Sprite(data, "fly");
+
+                var startX = (w/2) - (92/2)
+                    startY = 512,
+                    wiggleDelta = 18
+
+                // Set initial position and scale 1 to 1
+                bird.setTransform(startX, startY, 1, 1);
+                // Set framerate
+                bird.framerate = 30;
+
+                //338, 512
+                // Use a tween to wiggle the bird up and down using a sineInOut Ease
+                createjs.Tween.get(bird, {loop:true}).to({y:startY + wiggleDelta}, 380, createjs.Ease.sineInOut).to({y:startY}, 380, createjs.Ease.sineInOut);
+
+                stage.addChild(background, hill, hill2, bird, ground);
+                stage.addEventListener("stagemousedown", handleJumpStart);
+
+                createjs.Ticker.timingMode = createjs.Ticker.RAF;
+                createjs.Ticker.addEventListener("tick", tick);
+            }
+
+            function handleKeyDown(e) {
+                //cross browser issues exist
+                if(!e){ var e = window.event; }
+                switch(e.keyCode) {
+                    case KEYCODE_SPACE: handleJumpStart();
+                }
+            }
+
+            function handleJumpStart() {
+                createjs.Tween.removeTweens ( bird )
+                bird.gotoAndPlay("jump");
+                startJump = true
+            }
+
+            function diveBird() {
+                bird.gotoAndPlay("dive");
+            }
+
+            function tick(event) {
+                var deltaS = event.delta/1000;
+                var position = bird.x+150*deltaS;
+
+                if (bird.y > (ground.y - 40)) {
+                    dead = true
+                    if (bird.y > (ground.y - 30)) {
+                        createjs.Tween.removeTweens ( bird )
+                    }
+                } else {
+                    dead = false
+                }
+                
+                if (!dead) {
+                    ground.x = (ground.x-deltaS*300) % ground.tileW;
+                }
+
+                if (startJump == true) {
+                    startJump = false
+                    bird.framerate = 60;
+                    bird.gotoAndPlay("fly");
+                    createjs
+                        .Tween
+                        .get(bird)
+                        .to({y:bird.y - jumpAmount, rotation: -20}, 380, createjs.Ease.sineOut) //rotate to jump position and jump bird
+                        .to({y:bird.y}, 380, createjs.Ease.sineIn) //reverse jump for smooth arch
+                        .to({y:bird.y + 200, rotation: 90}, (380)/1.3, createjs.Ease.linear) //rotate back
+                        .call(diveBird) // change bird to diving position
+                        .to({y:ground.y - 30}, (h - (bird.y+200))/1.3, createjs.Ease.linear); //drop to the bedrock
+                }
+
+                hill.x = (hill.x - deltaS*30);
+                if (hill.x + hill.image.width*hill.scaleX <= 0) { hill.x = w; }
+                hill2.x = (hill2.x - deltaS*45);
+                if (hill2.x + hill2.image.width*hill2.scaleX <= 0) { hill2.x = w; }
+                
+                stage.update(event);
+            }
+            
+        </script>
+    </head>
+    <body onload="init();">
+        <canvas id="testCanvas" width="768" height="1024"></canvas>
+    </body>
+</html
